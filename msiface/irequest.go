@@ -4,4 +4,5 @@ package msiface
 type IRequest interface {
 	GetConnection() IConnection // TODO: 值or指针
 	GetData() []byte
+	GetMsgID() uint32
 }

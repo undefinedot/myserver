@@ -6,7 +6,14 @@
   <component name="ChangeListManager">
     <list default="true" id="b234e48e-f600-4241-9a01-2872f8f2d951" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/msiface/iconnection.go" beforeDir="false" afterPath="$PROJECT_DIR$/msiface/iconnection.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/msiface/irequest.go" beforeDir="false" afterPath="$PROJECT_DIR$/msiface/irequest.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/msiface/iserver.go" beforeDir="false" afterPath="$PROJECT_DIR$/msiface/iserver.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/msnet/connection.go" beforeDir="false" afterPath="$PROJECT_DIR$/msnet/connection.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/msnet/datapack.go" beforeDir="false" afterPath="$PROJECT_DIR$/msnet/datapack.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/msnet/message.go" beforeDir="false" afterPath="$PROJECT_DIR$/msnet/message.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/msnet/request.go" beforeDir="false" afterPath="$PROJECT_DIR$/msnet/request.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/msnet/server.go" beforeDir="false" afterPath="$PROJECT_DIR$/msnet/server.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

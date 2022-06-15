@@ -1,31 +1,33 @@
 package msnet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"myserver/msiface"
-	"myserver/utils"
 	"net"
 )
 
 type Connection struct {
-	Conn *net.TCPConn // 连接的socket
-	ConnID uint32 // 连接的ID
-	isClosed bool // 连接状态
-	ExitChan chan bool // 告知连接已经退出，缓冲区为1的channel TODO: 使用context
+	Conn     *net.TCPConn // 连接的socket
+	ConnID   uint32       // 连接的ID
+	isClosed bool         // 连接状态
+	ExitChan chan bool    // 告知连接已经退出，缓冲区为1的channel TODO: 使用context
 
-	Router msiface.IRouter // 处理连接的业务的方法从路由获取
+	MsgHandler msiface.IMsgHandler // 处理连接的业务的方法从路由获取
 }
 
-func NewConnection(conn *net.TCPConn, connID uint32, router msiface.IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, routers msiface.IMsgHandler) *Connection {
 	c := &Connection{
-		Conn:     conn,
-		ConnID:   connID,
-		isClosed: false,
-		ExitChan: make(chan bool, 1),
-		Router: router,
+		Conn:       conn,
+		ConnID:     connID,
+		isClosed:   false,
+		ExitChan:   make(chan bool, 1),
+		MsgHandler: routers,
 	}
 	return c
 }
+
 // StartReader 开启读数据业务
 func (c *Connection) StartReader() {
 	fmt.Println("Reader goroutine is running...")
@@ -35,25 +37,37 @@ func (c *Connection) StartReader() {
 
 	for {
 		// read data
-		buf := make([]byte, utils.GlobalConfig.MaxPacketSize)
-		_, err := c.Conn.Read(buf)
+
+		// 用来处理包的对象
+		dp := NewDataPack()
+		// 读取 // TODO: headData每次都创建，有必要改为单例吗
+		headData := make([]byte, dp.GetHeadLen())
+		if _, err := io.ReadFull(c.Conn, headData); err != nil {
+			fmt.Println("ReadFull headData error:", err)
+			return //直接退出
+		}
+		// unpack
+		msg, err := dp.Unpack(headData)
 		if err != nil {
-			fmt.Println("Read buf err:", err)
-			continue
+			fmt.Println("Unpack headData error:", err)
+			return
 		}
 
+		// 根据head读data // TODO: msg.(*Message).Data是否改变接口变量?可能报错！
+		if _, err := io.ReadFull(c.Conn, msg.(*Message).Data); err != nil {
+			fmt.Println("ReadFull data error:", err)
+			return
+		}
+
+		// 放入Request
 		// TODO: req是否必须是值，再传参时取地址？
-		// 封装Request，Router处理业务，将Request传入Router的方法中
+		// 封装Request，Router处理业务，将Request传入MsgHandler这个路由集合中
 		req := &Request{
 			conn: c,
-			data: buf,
+			msg:  msg,
 		}
-		go func(r msiface.IRequest) {
-			// todo: [记]模板方法设计模式，固定执行顺序，用户只能改写方法的具体实现
-			c.Router.PreHandle(r)
-			c.Router.Handle(r)
-			c.Router.PostHandle(r)
-		}(req)
+
+		go c.MsgHandler.DoMsgHandler(req)
 	}
 }
 
@@ -94,6 +108,23 @@ func (c *Connection) RemoteAddr() net.Addr {
 	return c.RemoteAddr()
 }
 
-func (c *Connection) Send(data []byte) error {
+// SendMsg 先封包，再发数据
+func (c *Connection) SendMsg(msgID uint32, data []byte) error {
+	// 连接是否关闭
+	if c.isClosed {
+		return errors.New("Connection closed...")
+	}
+	// 封包
+	dp := NewDataPack()
+	msgByte, err := dp.Pack(NewMsgPackage(msgID, data))
+	if err != nil {
+		fmt.Println("Pack error:", err)
+		return err
+	}
+	if _, err := c.Conn.Write(msgByte); err != nil {
+		fmt.Println("conn write error:", err)
+		return err
+	}
+
 	return nil
 }

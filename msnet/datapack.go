@@ -48,6 +48,7 @@ func (dp *DataPack) Unpack(data []byte) (msiface.IMessage, error) {
 	if err := binary.Read(reader, binary.LittleEndian, &msg.DataLen); err != nil {
 		return nil, err
 	}
+	msg.Data = make([]byte, msg.DataLen)
 	// ID
 	if err := binary.Read(reader, binary.LittleEndian, &msg.ID); err != nil {
 		return nil, err

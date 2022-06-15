@@ -1,16 +1,16 @@
 package msnet
 
 type Message struct {
-	ID uint32  // 消息ID
+	ID      uint32 // 消息ID
 	DataLen uint32
-	Data []byte
+	Data    []byte
 }
 
 // NewMsgPackage 初始化一个Message
-func NewMsgPackage(id, len uint32, data []byte) *Message  {
+func NewMsgPackage(id uint32, data []byte) *Message {
 	return &Message{
 		ID:      id,
-		DataLen: len,
+		DataLen: uint32(len(data)),
 		Data:    data,
 	}
 }
@@ -38,4 +38,3 @@ func (m *Message) SetDataLen(len uint32) {
 func (m *Message) SetData(data []byte) {
 	m.Data = data
 }
-

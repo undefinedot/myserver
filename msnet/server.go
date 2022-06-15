@@ -8,22 +8,22 @@ import (
 )
 
 type Server struct {
-	Name string
+	Name      string
 	IPVersion string
-	IP string
-	Port int
+	IP        string
+	Port      int
 
-	Router msiface.IRouter // TODO: 目前只能一个路由，以后可能需要注册多个路由
+	MsgHandler msiface.IMsgHandler
 }
 
 // NewServer 初始化Server模块
 func NewServer(name string) msiface.IServer {
 	s := &Server{
-		Name: utils.GlobalConfig.Name,
-		IPVersion: "tcp4",
-		IP: utils.GlobalConfig.Host,
-		Port: utils.GlobalConfig.TcpPort,
-		Router: nil,
+		Name:       utils.GlobalConfig.Name,
+		IPVersion:  "tcp4",
+		IP:         utils.GlobalConfig.Host,
+		Port:       utils.GlobalConfig.TcpPort,
+		MsgHandler: NewMsgHandler(),
 	}
 	return s
 }
@@ -59,7 +59,7 @@ func (s *Server) Start() {
 
 			// TODO：处理复杂业务
 			// 将conn和处理业务的函数进行绑定=>得到新的Connection模块
-			dealConn := NewConnection(conn, cid, s.Router)
+			dealConn := NewConnection(conn, cid, s.MsgHandler)
 			cid++
 
 			// 开启连接
@@ -80,7 +80,7 @@ func (s *Server) Serve() {
 	select {}
 }
 
-func (s *Server) AddRouter(router msiface.IRouter)  {
-	s.Router = router
+func (s *Server) AddRouter(msgID uint32, router msiface.IRouter) {
+	s.MsgHandler.AddRouter(msgID, router)
 	fmt.Println("AddRouter succeed!")
 }
