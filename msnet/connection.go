@@ -72,6 +72,7 @@ func (c *Connection) Start() {
 func (c *Connection) Stop() {
 	fmt.Println("Conn Stop, ConnID is", c.ConnID)
 
+	// TODO：什么时候在调用stop前已经是true
 	if c.isClosed {
 		return
 	}
