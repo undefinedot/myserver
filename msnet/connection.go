@@ -10,6 +10,7 @@ import (
 )
 
 type Connection struct {
+	TcpServer  msiface.IServer
 	Conn       *net.TCPConn        // 连接的socket
 	ConnID     uint32              // 连接的ID
 	isClosed   bool                // 连接状态
@@ -18,8 +19,9 @@ type Connection struct {
 	MsgHandler msiface.IMsgHandler // 处理连接的业务的方法从路由获取
 }
 
-func NewConnection(conn *net.TCPConn, connID uint32, routers msiface.IMsgHandler) *Connection {
+func NewConnection(server msiface.IServer, conn *net.TCPConn, connID uint32, routers msiface.IMsgHandler) *Connection {
 	c := &Connection{
+		TcpServer:  server,
 		Conn:       conn,
 		ConnID:     connID,
 		isClosed:   false,
@@ -27,6 +29,9 @@ func NewConnection(conn *net.TCPConn, connID uint32, routers msiface.IMsgHandler
 		msgChan:    make(chan []byte),
 		MsgHandler: routers,
 	}
+	// 将conn加入connManager
+	c.TcpServer.GetConnMgr().Add(c)
+
 	return c
 }
 
@@ -105,6 +110,9 @@ func (c *Connection) Start() {
 	// 分别开启goroutine来read和write
 	go c.StartReader()
 	go c.StartWriter()
+
+	// 钩子
+	c.TcpServer.CallOnConnStart(c)
 }
 
 // Stop 关闭连接，同时通知Writer
@@ -117,9 +125,14 @@ func (c *Connection) Stop() {
 	}
 	c.isClosed = true
 
-	// close socket
+	// 钩子
+	c.TcpServer.CallOnConnStop(c)
+
+	// 释放资源, close socket
 	c.Conn.Close()
-	c.ExitChan <- true // close(c.ExitChan)也可以
+	c.TcpServer.GetConnMgr().Remove(c)
+	close(c.ExitChan)
+	close(c.msgChan)
 }
 
 func (c *Connection) GetTCPConnection() *net.TCPConn {

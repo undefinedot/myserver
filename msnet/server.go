@@ -14,6 +14,10 @@ type Server struct {
 	Port      int
 
 	MsgHandler msiface.IMsgHandler
+	ConnMgr    msiface.IConnManager
+	// 钩子函数
+	OnConnStart func(conn msiface.IConnection) // 创建连接时
+	OnConnStop  func(conn msiface.IConnection) // 销毁连接时
 }
 
 // NewServer 初始化Server模块
@@ -24,6 +28,7 @@ func NewServer(name string) msiface.IServer {
 		IP:         utils.GlobalConfig.Host,
 		Port:       utils.GlobalConfig.TcpPort,
 		MsgHandler: NewMsgHandler(),
+		ConnMgr:    NewConnManager(),
 	}
 	return s
 }
@@ -60,9 +65,16 @@ func (s *Server) Start() {
 				continue
 			}
 
-			// TODO：处理复杂业务
+			// 限制conn总数
+			if s.ConnMgr.Count() >= utils.GlobalConfig.MaxConn {
+				conn.Close()
+				fmt.Println("error: too many conns!")
+				continue
+			}
+
+			// TODO：生成connID
 			// 将conn和处理业务的函数进行绑定=>得到新的Connection模块
-			dealConn := NewConnection(conn, cid, s.MsgHandler)
+			dealConn := NewConnection(s, conn, cid, s.MsgHandler)
 			cid++
 
 			// 开启连接
@@ -72,6 +84,9 @@ func (s *Server) Start() {
 }
 
 func (s *Server) Stop() {
+	// 关闭连接
+	s.ConnMgr.CleanConn()
+	fmt.Println("server stop(), clean conns completed")
 }
 
 func (s *Server) Serve() {
@@ -86,4 +101,34 @@ func (s *Server) Serve() {
 func (s *Server) AddRouter(msgID uint32, router msiface.IRouter) {
 	s.MsgHandler.AddRouter(msgID, router)
 	fmt.Println("AddRouter succeed!")
+}
+
+func (s *Server) GetConnMgr() msiface.IConnManager {
+	return s.ConnMgr
+}
+
+// SetOnConnStart 注册OnConnStart钩子方法
+func (s *Server) SetOnConnStart(f func(msiface.IConnection)) {
+	s.OnConnStart = f
+}
+
+// SetOnConnStop 注册OnConnStop钩子方法
+func (s *Server) SetOnConnStop(f func(msiface.IConnection)) {
+	s.OnConnStop = f
+}
+
+// CallOnConnStart 调用OnConnStart钩子方法
+func (s *Server) CallOnConnStart(conn msiface.IConnection) {
+	// 判断是否已注册钩子函数
+	if s.OnConnStart != nil {
+		s.OnConnStart(conn)
+	}
+}
+
+// CallOnConnStop 注册OnConnStop钩子方法
+func (s *Server) CallOnConnStop(conn msiface.IConnection) {
+	// 判断是否已注册钩子函数
+	if s.OnConnStop != nil {
+		s.OnConnStop(conn)
+	}
 }
