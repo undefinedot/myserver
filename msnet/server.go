@@ -34,6 +34,9 @@ func (s *Server) Start() {
 
 	// 开启goroutine去异步处理,在Serve()中阻塞
 	go func() {
+		// 开启工作池
+		s.MsgHandler.StartWorkerPool()
+
 		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
 		if err != nil {
 			fmt.Println("resolve tcp4 addr error: ", err)

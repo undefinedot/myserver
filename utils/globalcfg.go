@@ -7,25 +7,27 @@ var GlobalConfig *GlobalCfg
 type GlobalCfg struct {
 	/***	Server config	***/
 	TcpServer msiface.IServer // 全局Server对象
-	Host string
-	Name string
-	TcpPort int // 监听的端口号
+	Host      string
+	Name      string
+	TcpPort   int // 监听的端口号
 
 	/***	App Config	***/
-	Version string
-	MaxConn int // 最大连接数
-	MaxPacketSize uint32 // 数据包的最大值
+	Version          string
+	MaxConn          int    // 最大连接数
+	MaxPacketSize    uint32 // 数据包的最大值
+	WorkerPoolSize   uint32 // 工作池数量
+	MaxWorkerTaskLen uint32 // 每个worker处理的消息队列中任务数上限
 }
 
 // 自动初始化默认配置
 func init() {
 	// 默认配置
 	GlobalConfig = &GlobalCfg{
-		Name: "myserver app",
-		Version: "v0.1",
-		TcpPort: 7777,
-		Host: "0.0.0.0", //本地全部IP
-		MaxConn: 100,
+		Name:          "myserver app",
+		Version:       "v0.1",
+		TcpPort:       7777,
+		Host:          "0.0.0.0", //本地全部IP
+		MaxConn:       100,
 		MaxPacketSize: 4096,
 	}
 

@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"io"
 	"myserver/msiface"
+	"myserver/utils"
 	"net"
 )
 
 type Connection struct {
-	Conn     *net.TCPConn // 连接的socket
-	ConnID   uint32       // 连接的ID
-	isClosed bool         // 连接状态
-	ExitChan chan bool    // 告知连接已经退出，缓冲区为1的channel TODO: 使用context
-
+	Conn       *net.TCPConn        // 连接的socket
+	ConnID     uint32              // 连接的ID
+	isClosed   bool                // 连接状态
+	ExitChan   chan bool           // 告知连接已经退出，缓冲区为1的channel TODO: 使用context
+	msgChan    chan []byte         // reader和writer两个goroutine通信使用
 	MsgHandler msiface.IMsgHandler // 处理连接的业务的方法从路由获取
 }
 
@@ -23,6 +24,7 @@ func NewConnection(conn *net.TCPConn, connID uint32, routers msiface.IMsgHandler
 		ConnID:     connID,
 		isClosed:   false,
 		ExitChan:   make(chan bool, 1),
+		msgChan:    make(chan []byte),
 		MsgHandler: routers,
 	}
 	return c
@@ -53,7 +55,9 @@ func (c *Connection) StartReader() {
 			return
 		}
 
-		// 根据head读data // TODO: msg.(*Message).Data是否改变接口变量?可能报错！
+		// 根据head读data
+		// TODO: msg.(*Message).Data是否改变接口变量?可能报错！
+		// TODO: 判断dataLen为0的情况
 		if _, err := io.ReadFull(c.Conn, msg.(*Message).Data); err != nil {
 			fmt.Println("ReadFull data error:", err)
 			return
@@ -67,13 +71,33 @@ func (c *Connection) StartReader() {
 			msg:  msg,
 		}
 
-		go c.MsgHandler.DoMsgHandler(req)
+		// 先判断是否开启工作池,用户忘记设置时,开goroutine处理业务
+		if utils.GlobalConfig.WorkerPoolSize > 0 {
+			c.MsgHandler.SendReqToTaskQueue(req)
+		} else {
+			go c.MsgHandler.DoMsgHandler(req)
+		}
 	}
 }
 
 // StartWriter 开启写数据业务
 func (c *Connection) StartWriter() {
+	fmt.Println("writer goroutine is running...")
+	defer fmt.Println(c.RemoteAddr().String(), "Writer exit!")
 
+	// 循环等待Reader发的数据
+	for {
+		select {
+		case data := <-c.msgChan:
+			// channel中是[]byte类型，已pack
+			if _, err := c.Conn.Write(data); err != nil {
+				fmt.Println("conn write data error:", err)
+				return
+			}
+		case <-c.ExitChan:
+			return
+		}
+	}
 }
 func (c *Connection) Start() {
 	fmt.Println("Conn Start, ConnID is", c.ConnID)
@@ -83,6 +107,7 @@ func (c *Connection) Start() {
 	go c.StartWriter()
 }
 
+// Stop 关闭连接，同时通知Writer
 func (c *Connection) Stop() {
 	fmt.Println("Conn Stop, ConnID is", c.ConnID)
 
@@ -94,6 +119,7 @@ func (c *Connection) Stop() {
 
 	// close socket
 	c.Conn.Close()
+	c.ExitChan <- true // close(c.ExitChan)也可以
 }
 
 func (c *Connection) GetTCPConnection() *net.TCPConn {
@@ -108,7 +134,7 @@ func (c *Connection) RemoteAddr() net.Addr {
 	return c.RemoteAddr()
 }
 
-// SendMsg 先封包，再发数据
+// SendMsg 将[]byte的data=>封包=>TLV格式的[]byte类型的data
 func (c *Connection) SendMsg(msgID uint32, data []byte) error {
 	// 连接是否关闭
 	if c.isClosed {
@@ -125,6 +151,7 @@ func (c *Connection) SendMsg(msgID uint32, data []byte) error {
 		fmt.Println("conn write error:", err)
 		return err
 	}
+	c.msgChan <- msgByte
 
 	return nil
 }
