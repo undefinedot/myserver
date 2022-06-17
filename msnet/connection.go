@@ -7,6 +7,7 @@ import (
 	"myserver/msiface"
 	"myserver/utils"
 	"net"
+	"sync"
 )
 
 type Connection struct {
@@ -17,6 +18,9 @@ type Connection struct {
 	ExitChan   chan bool           // 告知连接已经退出，缓冲区为1的channel TODO: 使用context
 	msgChan    chan []byte         // reader和writer两个goroutine通信使用
 	MsgHandler msiface.IMsgHandler // 处理连接的业务的方法从路由获取
+
+	propertyLock sync.RWMutex
+	property     map[string]interface{} // 连接属性集合
 }
 
 func NewConnection(server msiface.IServer, conn *net.TCPConn, connID uint32, routers msiface.IMsgHandler) *Connection {
@@ -28,6 +32,7 @@ func NewConnection(server msiface.IServer, conn *net.TCPConn, connID uint32, rou
 		ExitChan:   make(chan bool, 1),
 		msgChan:    make(chan []byte),
 		MsgHandler: routers,
+		property:   nil,
 	}
 	// 将conn加入connManager
 	c.TcpServer.GetConnMgr().Add(c)
@@ -167,4 +172,34 @@ func (c *Connection) SendMsg(msgID uint32, data []byte) error {
 	c.msgChan <- msgByte
 
 	return nil
+}
+
+// SetProperty 设置连接属性
+func (c *Connection) SetProperty(key string, val interface{}) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	if c.property == nil {
+		c.property = make(map[string]interface{})
+	}
+	c.property[key] = val
+}
+
+// GetProperty 获取连接属性
+func (c *Connection) GetProperty(key string) (val interface{}, err error) {
+	c.propertyLock.RLock()
+	defer c.propertyLock.RUnlock()
+
+	if v, ok := c.property[key]; ok {
+		return v, nil
+	}
+	return nil, errors.New("property not found!")
+}
+
+// RemoveProperty 移除连接属性
+func (c *Connection) RemoveProperty(key string) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	delete(c.property, key)
 }
